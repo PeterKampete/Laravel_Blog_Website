@@ -4,9 +4,15 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Post;
+use Cviebrock\EloquentSluggable\Services\SlugService;
+
 
 class PostController extends Controller
-{
+{  
+
+    public function __construct(){
+        $this->middleware('auth',['except' =>['index', 'show']]);
+    }
     /**
      * Display a listing of the resource.
      *
@@ -36,52 +42,92 @@ class PostController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+            'image' => 'required| mimes:png,jpg,jpeg|max:5048'
+        ]);
+
+        $newImageName = uniqid() . '-' . $request->title . '.' .
+        $request->image->extension();
+
+        $request->image->move(public_path('images'),$newImageName);
+
+        Post::create([
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'slug' => SlugService::createSlug(Post::class, 'slug', $request->title),
+            'image_path' => $newImageName,
+            'user_id' => auth()->user()->id
+        ]);
+
+        return redirect('/blog')->with('message', 'Your post has been added!!!');
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  int  $id
+     * @param  string  $slug
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
+    public function show($slug)
     {
-        //
+        return view('blog.show')
+        ->with('post',Post::where('slug',$slug))->first();
     }
 
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  int  $id
+     * @param  string  $slug
      * @return \Illuminate\Http\Response
      */
-    public function edit($id)
+    public function edit($slug)
     {
-        //
+        return view('blog.edit')
+        ->with('post', Post::where('slug', $slug)->first());
     }
 
     /**
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  string  $slug
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, $slug)
     {
-        //
+         $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+        ]);
+
+        Post::where('slug', $slug)
+        ->update([
+             'title' => $request->input('title'),
+            'description' => $request->input('description'),
+            'slug' => SlugService::createSlug(Post::class, 'slug', $request->title),
+            'user_id' => auth()->user()->id
+        ]);
+
+        return redirect('/blog')
+        ->with('message', 'Your Post Has been Updated!!!');
     }
 
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param  slug  $slug
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy($slug)
     {
-        //
+               $post = Post::where('slug',$slug);
+               $post->delete();
+ 
+
+       return redirect('/blog')
+        ->with('message', 'Your post has benn deleted!');
     }
 }
 
